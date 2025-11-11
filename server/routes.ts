@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import http from "http";
+import { randomUUID } from "crypto";
 
 type Goal = { id: string; title: string; dueDate?: string; completed?: boolean };
 type Reflection = { id: string; date: string; notes: string };
@@ -14,11 +15,21 @@ export async function registerRoutes(app: Express) {
   // ---- Goals ----
   app.get("/api/goals", (_req, res) => res.json(Object.values(goals)));
 
+  // Create goal (auto-fill today's date if none provided)
   app.post("/api/goals", (req, res) => {
     const { title, dueDate } = req.body ?? {};
     if (!title) return res.status(400).json({ message: "title is required" });
-    const id = crypto.randomUUID();
-    const goal: Goal = { id, title, dueDate, completed: false };
+
+    const id = randomUUID();
+    const autoDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    const goal: Goal = {
+      id,
+      title,
+      dueDate: dueDate || autoDate,
+      completed: false,
+    };
+
     goals[id] = goal;
     res.status(201).json(goal);
   });
@@ -26,7 +37,12 @@ export async function registerRoutes(app: Express) {
   app.patch("/api/goals/:id", (req, res) => {
     const goal = goals[req.params.id];
     if (!goal) return res.status(404).json({ message: "not found" });
-    Object.assign(goal, req.body);
+
+    const { title, dueDate, completed } = req.body ?? {};
+    if (title !== undefined) goal.title = title;
+    if (dueDate !== undefined) goal.dueDate = dueDate;
+    if (completed !== undefined) goal.completed = !!completed;
+
     res.json(goal);
   });
 
@@ -42,7 +58,8 @@ export async function registerRoutes(app: Express) {
   app.post("/api/reflections", (req, res) => {
     const { date, notes } = req.body ?? {};
     if (!date || !notes) return res.status(400).json({ message: "date and notes required" });
-    const id = crypto.randomUUID();
+
+    const id = randomUUID();
     const entry: Reflection = { id, date, notes };
     reflections[id] = entry;
     res.status(201).json(entry);
